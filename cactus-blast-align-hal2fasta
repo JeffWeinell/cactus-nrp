@@ -1,0 +1,55 @@
+#!/bin/bash
+
+SETTINGS_PATH=${1}
+JOBSTEP=${2}
+SAMPLE_NAME=${3}
+
+JOBSTEP_BLAST=$JOBSTEP
+JOBSTEP_ALIGN=$(($JOBSTEP+1))
+
+# load variables
+source $SETTINGS_PATH
+
+mkdir -p $JOBSTORE
+mkdir -p $LOGS_DIR_POD
+
+# copy seqfiles into /data/output/ and use these copies when running cactus, because the directory containing these two files must be writeable.
+cp $SEQFILE_PATH $OUTDIR_POD$SEQFILE_NAME
+cp $SEQFILE_PREPARED_PATH $OUTDIR_POD$SEQFILE_PREPARED_FILE
+
+# import files from $OUTDIR_REMOTE to $OUTDIR_POD
+FILES2IMPORT=$(rclone ls $OUTDIR_REMOTE --max-depth 1 | awk '$1>0{print $2}')
+NUMFILES2IMPORT=$(echo "$FILES2IMPORT" | wc -w)
+[[ "$NUMFILES2IMPORT" -gt 0 ]] && rclone copy $OUTDIR_REMOTE $OUTDIR_POD --verbose --include-from <(echo "$FILES2IMPORT")
+wait
+
+# import preprocessed genomes with filenames defined in cactus seqfile from remote bucket
+GENOMES2IMPORT=$(awk 'NR>1{print $2}' $SEQFILE_PATH | sed -E 's|(^.*/)([^/]+$)|\2|g')
+rclone copy $PREPROCESSED_GENOMES_DIR_REMOTE $OUTDIR_POD --verbose --include-from <(echo "$GENOMES2IMPORT")
+wait
+
+# run cactus-blast and copy output files to remote bucket
+cactus-blast $JOBSTORE$JOBSTEP_BLAST $OUTDIR_POD$SEQFILE_PREPARED_FILE $OUTDIR_POD$SAMPLE_NAME".paf" --root $SAMPLE_NAME  --lastzMemory $LASTZ_MEM --gpu $NGPU --logFile $LOGS_DIR_POD"blast-"$SAMPLE_NAME".log"
+wait
+rclone copy $OUTDIR_POD$SAMPLE_NAME".paf" $OUTDIR_REMOTE --verbose --ignore-existing
+wait
+rclone copy $LOGS_DIR_POD"blast-"$SAMPLE_NAME".log" $LOGS_DIR_REMOTE --verbose --ignore-existing
+wait
+
+# run cactus-align and copy output files to remote bucket
+cactus-align $JOBSTORE$JOBSTEP_ALIGN $OUTDIR_POD$SEQFILE_PREPARED_FILE $OUTDIR_POD$SAMPLE_NAME".paf" $OUTDIR_POD$SAMPLE_NAME".hal" --root $SAMPLE_NAME --logFile $LOGS_DIR_POD"align-"$SAMPLE_NAME".log"
+wait
+
+rclone copy $OUTDIR_POD$SAMPLE_NAME".hal" $OUTDIR_REMOTE --verbose --ignore-existing
+wait
+
+rclone copy $LOGS_DIR_POD"align-"$SAMPLE_NAME".log" $LOGS_DIR_REMOTE --verbose --ignore-existing
+wait
+
+# convert hal to fasta and copy output files to remote bucket
+hal2fasta $OUTDIR_POD$SAMPLE_NAME".hal" $SAMPLE_NAME --hdf5InMemory > $OUTDIR_POD$SAMPLE_NAME".fa"
+wait
+
+rclone copy $OUTDIR_POD$SAMPLE_NAME".fa" $OUTDIR_REMOTE --verbose --ignore-existing
+wait
+

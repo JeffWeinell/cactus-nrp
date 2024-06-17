@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Generate commands for running cactus step-by-step and organize into a parsable table
+# Dont edit this file. To change settings, edit "*-settings" file.
+
+SETTINGS_PATH=${1}
+
+source $SETTINGS_PATH
+
+mkdir -p $LOGS_DIR_POD
+wait
+
+# generate prepared steps file $PREPARED_STEPS_PATH
+cactus-prepare $SEQFILE_PATH --defaultMemory $LASTZ_MEM --outDir $OUTDIR_POD --outSeqFile $SEQFILE_PREPARED_OUTPATH --outHal $FINAL_HAL_PATH --jobStore $JOBSTORE --gpu $NGPU &> $PREPARED_STEPS_PATH
+wait
+
+# generate prepared steps table file ($PREPARED_STEPS_TABLE_PATH from $PREPARED_STEPS_PATH)
+ROUNDS_LINE_START=$(awk '{if($2=="Round") print $2"_"$3,NR}' $PREPARED_STEPS_PATH)
+ALN_LINE_END=$(grep -n 'HAL merging' $PREPARED_STEPS_PATH | awk -F':' '{print  $1}')
+NUMROUNDS=$(echo "$ROUNDS_LINE_START" | wc -l)
+for i in $(seq 1 $NUMROUNDS);
+do
+	echo $i 
+	ROUNDi=$(echo "$ROUNDS_LINE_START" | awk -v i=$i 'NR==i{print $1}')
+	ROUNDi_LINE_START=$(echo "$ROUNDS_LINE_START" | awk -v i=$i 'NR==i{print $2}')
+	[[ "$i" -lt "$NUMROUNDS" ]] && ROUNDi_LINE_END=$(echo "$ROUNDS_LINE_START" | awk -v i=$i 'NR==i+1{print $2}')
+	[[ "$i" -eq "$NUMROUNDS" ]] && ROUNDi_LINE_END=$ALN_LINE_END
+	ROUNDi_JOBS=$(awk -v ri=$ROUNDi -v x=$ROUNDi_LINE_START -v y=$ROUNDi_LINE_END '$1=="cactus-blast" && NR > x && NR < y {print ri"\t"$2"\t"$6"\t"$1} $1=="cactus-align" && NR > x && NR < y {print ri"\t"$2"\t"$7"\t"$1} ' $PREPARED_STEPS_PATH | sed "s|$JOBSTORE||g" | sed 's|cactus-align|cactus-align,hal2fasta|g')
+	[[ "$i" -eq 1 ]] && echo "$ROUNDi_JOBS" > $PREPARED_STEPS_TABLE_PATH
+	[[ "$i" -gt 1 ]] && echo "$ROUNDi_JOBS" >> $PREPARED_STEPS_TABLE_PATH
+done
+
+# export prepared seqfile to $LOGS_DIR_REMOTE
+rclone copy $SEQFILE_PREPARED_OUTPATH $LOGS_DIR_REMOTE --verbose --ignore-existing
+wait
+
+# export prepared steps file to $LOGS_DIR_REMOTE
+rclone copy $PREPARED_STEPS_PATH $LOGS_DIR_REMOTE --verbose --ignore-existing
+wait
+
+# export prepared steps table to $LOGS_DIR_REMOTE
+rclone copy $PREPARED_STEPS_TABLE_PATH $LOGS_DIR_REMOTE --verbose --ignore-existing
+wait
+
