@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Dont edit this file. To change settings, edit "*-settings" file.
+
+SETTINGS_PATH=${1}
+genomei=${2}
+
+source $SETTINGS_PATH
+
+mkdir -p $LOGS_DIR_POD
+mkdir -p $JOBSTORE
+
+# copy seqfiles to the writeable directory $OUTDIR_POD
+cp $SEQFILE_PATH $OUTDIR_POD$SEQFILE_NAME
+cp $SEQFILE_PREPARED_PATH $OUTDIR_POD$SEQFILE_PREPARED_FILE
+
+cactus-preprocess $JOBSTORE"0" $OUTDIR_POD$SEQFILE_NAME $OUTDIR_POD$SEQFILE_PREPARED_FILE --inputNames $genomei --lastzMemory $LASTZ_MEM --logFile $LOGS_DIR_POD$genomei".log"
+wait
+
+# export preprocessed genomes to remote bucket $PREPROCESSED_GENOMES_DIR_REMOTE
+GENOMES_INCLUDE=$(awk -v sn=$genomei 'NR>1 && $1==sn{print $2}' $SEQFILE_PATH | sed -E 's|(^.*/)([^/]+$)|\2|g')
+rclone copy $OUTDIR_POD $PREPROCESSED_GENOMES_DIR_REMOTE --verbose --ignore-existing --include-from <(echo "$GENOMES_INCLUDE")
+wait
+
+# export log files to remote bucket $LOGS_DIR_REMOTE
+rclone copy $LOGS_DIR_POD $LOGS_DIR_REMOTE --verbose --ignore-existing
+wait
