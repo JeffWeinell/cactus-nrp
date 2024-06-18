@@ -1,0 +1,8 @@
+[bucketname]
+type = s3
+provider = ceph
+env_auth = 
+access_key_id = 
+secret_access_key = 
+endpoint = 
+acl = 
