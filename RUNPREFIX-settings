@@ -1,0 +1,117 @@
+#!/bin/bash
+
+############################ variables without defaults
+### unique name to use for current cactus alignment inference; filename prefix in 'seqfile', 'settings', and other run-specific files.
+# only use lowercase letters, numbers, and dashes
+RUNPREFIX=
+### remote storage S3 bucket name where i/o genomes and files are saved
+# only use lowercase letters, numbers, and dashes, and must end with ':'
+REMOTE_BUCKET_NAME=
+
+############################ TOIL resource allocation settings
+# memory to allocate to each lastz/seqalign job
+LASTZ_MEM="150Gi"
+# number of GPUs to use for each lastz/seqalign job
+NGPU=1
+
+############################ bucket namespace (set up in advance with National Research Platform)
+# remote bucket:path where input genomes are stored before processing by 'cactus-preprocess'. Dont change this across runs or else you will waste remote storage space.
+GENOMES_DIR_REMOTE=$REMOTE_BUCKET_NAME"genomes/"
+
+# remote bucket:path where 'preprocessed' genomes (from running 'cactus-preprocess') are stored. Dont change this across runs or else you will waste remote storage space.
+PREPROCESSED_GENOMES_DIR_REMOTE=$REMOTE_BUCKET_NAME"genomes-preprocessed/"
+
+# remote bucket:path where run-specific cactus output files should be saved (manually create this bucket before running cactus-preprocess)
+OUTDIR_REMOTE=$REMOTE_BUCKET_NAME$RUNPREFIX"-cactus-output/"
+
+# remote bucket:path where run-specific log files are saved
+LOGS_DIR_REMOTE=$OUTDIR_REMOTE"logs/"
+
+############################ names of kubernetes secrets and files (usually, <file name>=<secret name> )
+# Cactus seqFile (manually created version)
+SEQFILE_SEC_NAME=$RUNPREFIX"-seqfile"
+SEQFILE_NAME=$SEQFILE_SEC_NAME
+
+# Cactus seqFile ('prepared' version produced by running 'cactus-prepare' on $SEQFILE_NAME)
+SEQFILE_PREPARED_SEC_NAME=$RUNPREFIX"-seqfile-prepared"
+SEQFILE_PREPARED_FILE=$SEQFILE_PREPARED_SEC_NAME
+
+# kubernetes secret name and filename of the settings file (this file)
+SETTINGS_SECRET=$RUNPREFIX"-settings"
+SETTINGS_FILE=$SETTINGS_SECRET
+
+# bash script for installing dependency apps
+APPS_SECRET="apps"
+APPS_FILE="apps.sh"
+
+# rclone config file
+RCLONE_SECRET="rclone"
+RCLONE_FILE=$RCLONE_SECRET
+
+# bash script for running cactus-prepare
+CACTUS_PREPARE_SECRET="cactus-prepare"
+CACTUS_PREPARE_FILE=$CACTUS_PREPARE_SECRET
+
+# bash script for running cactus-preprocess on one genome
+CACTUS_PREPROCESS_GENOME_SECRET="cactus-preprocess-genome"
+CACTUS_PREPROCESS_GENOME_FILE=$CACTUS_PREPROCESS_GENOME_SECRET
+
+# bash script for running cactus-blast, cactus-align, and hal2fasta
+CACTUS_BLAST_ALIGN_FILE="cactus-blast-align-hal2fasta"
+
+############################ other filenames
+# name of file with step-by-step cactus commands prepared by running 'cactus-prepare'
+PREPARED_STEPS_FILE=$RUNPREFIX"-prepared-steps"
+# name of file with table of parameters associated with commands in $STEPS_PREPARED_FILE
+PREPARED_STEPS_TABLE_FILE=$RUNPREFIX"-prepared-steps-table"
+# name of final hal file with aligned genomes
+FINAL_HAL_FILE=$RUNPREFIX"-genomes.hal"
+
+############################ pod environment namespace
+# pod mountPath for kubernetes secrets
+SECRETS_MOUNTPATH="/projected-volume/"
+# within-pod path to directory where non-temporary output files are saved (,.paf, .fa, .log files)
+OUTDIR_POD="/data/output/"
+# within-pod path to directory where log files are saved
+LOGS_DIR_POD=$OUTDIR_POD"logs/"
+# within-pod path to directory where temporary TOIL jobstore files are saved
+JOBSTORE="/data/jobStore/"
+# within-pod path to directory where other (non-TOIL) temporary files are saved
+TEMPDIR_POD=  # (variable currently not used)
+
+# within-pod path to 'manually created' version of seqfile (which contains the guide tree on first line and genome names and remote paths on subsequent lines)
+SEQFILE_PATH=$SECRETS_MOUNTPATH$SEQFILE_NAME
+
+# within-pod path to $SEQFILE_PREPARED_FILE in pod that runs cactus-prepare
+SEQFILE_PREPARED_OUTPATH=$OUTDIR_POD$SEQFILE_PREPARED_FILE
+
+# within-pod path to $SEQFILE_PREPARED_FILE in pods that run cactus-preprocess, cactus-blast, cactus-align, and cactus-halmerge
+SEQFILE_PREPARED_PATH=$SECRETS_MOUNTPATH$SEQFILE_PREPARED_FILE
+
+# within-pod path to prepared step-by-step cactus commands
+PREPARED_STEPS_PATH=$OUTDIR_POD$PREPARED_STEPS_FILE
+
+# within-pod path to table of parameters associated with commands in $STEPS_PREPARED_FILE
+PREPARED_STEPS_TABLE_PATH=$OUTDIR_POD$PREPARED_STEPS_TABLE_FILE
+
+# within-pod path to $SETTINGS_FILE
+SETTINGS_PATH=$SECRETS_MOUNTPATH$SETTINGS_FILE
+
+# within-pod path to $IMPORT_PREPROCESSED_GENOMES_FILE
+IMPORT_PREPROCESSED_GENOMES_PATH=$SECRETS_MOUNTPATH$IMPORT_PREPROCESSED_GENOMES_FILE
+
+# within-pod path to $CACTUS_PREPROCESS_FILE
+CACTUS_PREPROCESS_GENOME_PATH=$SECRETS_MOUNTPATH$CACTUS_PREPROCESS_GENOME_FILE
+# within-pod path to $CACTUS_PREPARE_FILE
+CACTUS_PREPARE_PATH=$SECRETS_MOUNTPATH$CACTUS_PREPARE_FILE
+# within-pod path to $CACTUS_BLAST_ALIGN_FILE
+CACTUS_BLAST_ALIGN_PATH=$SECRETS_MOUNTPATH$CACTUS_BLAST_ALIGN_FILE
+
+# within-pod path where final halfile should be saved
+FINAL_HAL_PATH=$OUTDIR_POD$FINAL_HAL_FILE
+
+
+
+
+
+
