@@ -1,4 +1,4 @@
-# Running Progressive Cactus step-by-step using NRP compute and storage clusters
+# Running Progressive Cactus step-by-step using NRP cluster and S3 storage
 
 These steps may be useful for AMNH Herpetology lab members that have access to NRP resources.
 
@@ -9,7 +9,7 @@ These steps may be useful for AMNH Herpetology lab members that have access to N
 - 'rclone', to create/configure/organize your S3 bucket environment. I installed this locally and in a conda environment on mendel
 - 'kubectl', to manage cluster jobs. I installed this locally.
 
-#### Setup S3 bucket for temporary remote storage
+#### Organize S3 bucket
 For the following code, replace 'mybucket' with the name of your storage bucket.
 
 ```
